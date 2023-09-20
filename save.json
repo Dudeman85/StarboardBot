@@ -1,0 +1,22 @@
+{
+    "timezone": "Europe/Helsinki",
+    "toChannel": 1153260810550902825,
+    "notify": [
+        209821797200297984,
+        233844862523408385
+    ],
+    "messages": {
+        "ateaassat 1": {
+            "text": "sadasdasdm",
+            "time": "22:07",
+            "repeat": "yeah"
+        }
+    },
+    "messageCache": {
+        "1153406843993989180": [
+            "ateaassat 1",
+            1153406853976432651,
+            1153406858355277874
+        ]
+    }
+}
