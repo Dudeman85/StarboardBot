@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo, available_timezones
 import json
 
 MAX_CACHE_SIZE = 30
+WEEKDAYS = {0:"monday", 1:"tuesday", 2:"wednesday", 3:"thursday", 4:"friday", 5:"saturday", 6:"sunday"}
 
 #By default need to have at least one time
 times = [datetime.time(hour=0, minute=0)]
@@ -61,7 +62,7 @@ class RemindBot(discord.Client):
             #Set the default settings
             self.data["timezone"] = "UTC"
             self.data["toChannel"] = "1153254266744606760" #TODO THIS IS VERY TEMPORARY GET THE REAL DEFAULT ID
-            self.data["notify"] = ""
+            self.data["notify"] = []
             self.data["messages"] = {}
             self.data["messageCache"] = {}
             self.save_data()
@@ -77,27 +78,71 @@ class RemindBot(discord.Client):
         if str(payload.message_id) not in self.data["messageCache"]:
             return
 
-
-        """
-        #Form the message
+        #Get the message from cache
         cacheInfo = self.data["messageCache"][str(payload.message_id)]
         
-        #For each user set to be notified
-        dmID = 1
-        for userID in self.data["notify"]:
+        #For each channel set to be notified
+        msgID = 0
+        for channelID in self.data["notify"]:
             #Get the proper message from the user's dms
-            sendTo = await self.fetch_user(userID)
+            sendTo = self.get_channel(channelID)
 
-            something = sendTo.history()
-            channel = discord.utils.get(self.private_channels, id=cacheInfo[dmID])
+            msg = await sendTo.fetch_message(cacheInfo[msgID])
+            msgID += 1
 
-            for pmChannels in self.private_channels:
-                if sendTo in pmChannels:
-                    dm = await sendTo.fetch_message(cacheInfo[dmID])
+            newContent = msg.content
+        
+            #If the emoji is already in the message
+            if payload.emoji.name in msg.content:
+                #Insert the reactor's name after the appropriate emoji 
+                emojiIndex = newContent.find(payload.emoji.name)
+                newContent = newContent[:emojiIndex + 2] + f" <@{payload.user_id}>" + newContent[emojiIndex + 2:]
+            else:
+                #If the reaction is a new emoji put it at the end of the message
+                newContent += "\n" + payload.emoji.name + f": <@{payload.user_id}>"
 
-                    #Update the message
-                    await dm.edit(content="asdasdasds")         
-        """   
+            #Update the message
+            await msg.edit(content=newContent)
+
+    #Every time someone removes a reaction to this bots message
+    async def on_raw_reaction_remove(self, payload):
+        #If the message is not in the tracked cache ignore reaction
+        if str(payload.message_id) not in self.data["messageCache"]:
+            return
+
+        #Get the message from cache
+        cacheInfo = self.data["messageCache"][str(payload.message_id)]
+        
+        #For each channel set to be notified
+        msgID = 0
+        for channelID in self.data["notify"]:
+            #Get the proper message from the user's dms
+            sendTo = self.get_channel(channelID)
+
+            msg = await sendTo.fetch_message(cacheInfo[msgID])
+            msgID += 1
+
+            newContent = msg.content
+
+            #Get the indices of the removed emoji and the end of that line
+            emojiIndex = newContent.find(payload.emoji.name)
+            eol = newContent[emojiIndex + 2:].find(":")
+            #Splice off every line before and after the one of interest
+            afterEmoji = ""
+            if eol != -1:
+                afterEmoji = newContent[eol + emojiIndex:]
+            else:
+                eol = 2
+
+            beforeEmoji = newContent[:emojiIndex]
+            #Remove the mention
+            emojiLine = newContent[emojiIndex:eol + emojiIndex].replace(f" <@{payload.user_id}>", "")
+            #Splice the string back together
+            newContent = beforeEmoji + emojiLine + afterEmoji
+
+            #Update the message
+            await msg.edit(content=newContent)
+
 
     #Every time a message is sent in a channel
     async def on_message(self, message):
@@ -125,22 +170,22 @@ class RemindBot(discord.Client):
                 #If no new timezone is provided send the current one
                 await message.channel.send(f"Current timezone is " + str(self.data["timezone"]) + "\nTo change the timezone use $timezone [new timezone]")
 
-        #$notify [person]
+        #$notify [channels]
         #Notifies every mentioned person when a message was reacted on
         if(message.content.startswith("$notify")):
             #If no one was mentioned
-            if len(message.mentions) == 0:
+            if len(message.channel_mentions) == 0:
                 await message.channel.send("Usage: $notify [@person]")
                 return
 
             self.data["notify"] = []
 
             msg = "Notifying "
-            for mention in message.mentions:
+            for mention in message.channel_mentions:
                 #Add them to data
                 self.data["notify"].append(mention.id)
                 #Format the mentions into a string to be sent as confirmation
-                msg += f"<@{mention.id}> "
+                msg += f"<#{mention.id}> "
             await message.channel.send(msg)
             
             self.save_data()
@@ -171,12 +216,16 @@ class RemindBot(discord.Client):
                 repeat = msgParams[3].lstrip()
 
                 #If a message with the label already exists, don't add it
-                if(label in self.data["messages"]):
+                if label in self.data["messages"]:
                     await message.channel.send("Message with label " + label + " already exists")
                     return
 
+                if repeat.lower() not in WEEKDAYS.values() and repeat.lower() != "daily":
+                    await message.channel.send(repeat + " is not a valid weekday")
+                    return
+
                 #Add a new message to the data dict
-                newMessage = {"text":text, "time":time, "repeat":repeat}
+                newMessage = {"text":text, "time":time, "repeat":repeat.lower()}
                 self.data["messages"][label] = newMessage
                 self.save_data()
                 #Remake the scheduler because of time changes
@@ -185,7 +234,7 @@ class RemindBot(discord.Client):
                 await message.channel.send("Successfully created new message")
             except Exception as e:
                 print(e)
-                await message.channel.send("Usage: $add message [label] [message] [time] [repeat]")
+                await message.channel.send("Usage: $add message [label] [message] [time (H:M)] [repeat (weekday or daily)]")
 
         #$remove message [label]
         #Removes a scheduled message by label
@@ -242,27 +291,29 @@ $remove message [label] : Removes a message by label
             hour = hm[0]
             minute = hm[1]
 
-            #If the current time matches the message time send it
-            if int(hour) == now.hour and int(minute) == now.minute:
-                msg = await channel.send(message["text"])
-                #Add the reactions
-                await msg.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
-                await msg.add_reaction(u"\N{CROSS MARK}")
+            #If the current day is the correct one
+            if WEEKDAYS[datetime.datetime.today().weekday()] == message["repeat"] or message["repeat"] == "daily":
+                #If the current time matches the message time send it
+                if int(hour) == now.hour and int(minute) == now.minute:
+                    msg = await channel.send(message["text"])
+                    #Add the reactions
+                    await msg.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
+                    await msg.add_reaction(u"\N{CROSS MARK}")
 
-                cacheData = [label]
-                dm = f"{label}:\n\N{WHITE HEAVY CHECK MARK} :\n\N{CROSS MARK} :"
-                #Send the reaction counter dm
-                #For each user set to be notified
-                for userID in self.data["notify"]:
-                    sendTo = await self.fetch_user(userID)
-                    dmID = await sendTo.send(dm)
-                    cacheData.append(dmID.id)
+                    cacheData = []
+                    notifyInfo = f"@here\n{label}:\n\N{WHITE HEAVY CHECK MARK}:\n\N{CROSS MARK}:"
+                    #Send the reaction counter dm
+                    #For each user set to be notified
+                    for notifyChannel in self.data["notify"]:
+                        sendTo = self.get_channel(notifyChannel)
+                        msgID = await sendTo.send(notifyInfo)
+                        cacheData.append(msgID.id)
 
-                #Add the message to cache
-                self.data["messageCache"][str(msg.id)] = cacheData
-                if len(self.data["messageCache"]) > MAX_CACHE_SIZE:
-                    self.data["messageCache"].pop(0)
-                self.save_data()
+                    #Add the message to cache
+                    self.data["messageCache"][str(msg.id)] = cacheData
+                    if len(self.data["messageCache"]) > MAX_CACHE_SIZE:
+                        self.data["messageCache"].pop(0)
+                    self.save_data()
 
     #Write data to json file
     def save_data(self):
@@ -278,4 +329,4 @@ intents.reactions = True
 
 client = RemindBot(intents=intents)
 
-client.run("")
+client.run("MTE1MzI1NjcxNzUwNTgxMDQ0NA.GXqRlq.t3qAWdtrOvueQdK3lzdpOlHB1akN4agJ3T73KE")
