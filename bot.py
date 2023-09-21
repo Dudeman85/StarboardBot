@@ -329,4 +329,4 @@ intents.reactions = True
 
 client = RemindBot(intents=intents)
 
-client.run("MTE1MzI1NjcxNzUwNTgxMDQ0NA.GXqRlq.t3qAWdtrOvueQdK3lzdpOlHB1akN4agJ3T73KE")
+client.run("")
