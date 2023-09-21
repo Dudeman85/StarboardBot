@@ -329,4 +329,7 @@ intents.reactions = True
 
 client = RemindBot(intents=intents)
 
-client.run("")
+secretFile = open("super_secret_secret.salakieli", "r")
+secret = secretFile.read()
+secretFile.close()
+client.run(secret)
