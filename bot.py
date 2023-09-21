@@ -272,11 +272,11 @@ class RemindBot(discord.Client):
             await message.channel.send(
                 r"""
 $help : Prints this message
-$notify [@persons] : Notifies every mentioned person when a message was reacted on
-$timezone [new timezone] : Returns the current timezone, or if new timezone is provided switch to using that
+$notify [#channels] : Notifies every mentioned mentioned channel with a @.here
+$timezone [timezone] : Returns the current timezone, or if new timezone is provided switch to using that
 $send to channel [#channel] : Sends the scheduled messages to specified channel
 $list messages : Shows the curretly scheduled messages
-$add message [label], [text], [time (H:M)], [repeat] : Schedule a message to be sent at time, optionally repeat on specific week day 
+$add message [label], [text], [time (H:M)], [repeat] : Schedule a message to be sent at time and repeat on weekday or daily
 $remove message [label] : Removes a message by label
             """)
 
@@ -322,7 +322,6 @@ $remove message [label] : Removes a message by label
             file.write(data)
 
 
-        
 intents = discord.Intents.default()
 intents.message_content = True
 intents.reactions = True
