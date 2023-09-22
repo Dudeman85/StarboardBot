@@ -6,3 +6,4 @@
 - Create list of teams played against
 - Record scrim results with W/L
 - Notify admin when reaction threshold is met
+- Keep help section updated
