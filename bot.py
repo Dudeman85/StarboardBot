@@ -34,7 +34,10 @@ class Scheduler(commands.Cog):
             minute = int(msgTime[1])
             #Create the time object and add it to the list
             time = datetime.time(hour=hour, minute=minute, tzinfo=ZoneInfo(self.bot.data["timezone"]))
-            times.append(time)
+
+            #Only add the time if it is not already in the list
+            if time not in times:
+                times.append(time)
 
         #Update the times to run send_messages at
         self.send_message.change_interval(time=times)
@@ -270,10 +273,10 @@ class RemindBot(discord.Client):
         #Prints the usage of every command
         if(message.content.startswith("$help")):
             await message.channel.send(
-                r"""
+            r"""
 $help : Prints this message
-$notify [#channels] : Notifies every mentioned mentioned channel with a @.here
 $timezone [timezone] : Returns the current timezone, or if new timezone is provided switch to using that
+$notify [#channels] : Notifies every mentioned channel with a @.here
 $send to channel [#channel] : Sends the scheduled messages to specified channel
 $list messages : Shows the curretly scheduled messages
 $add message [label], [text], [time (H:M)], [repeat] : Schedule a message to be sent at time and repeat on weekday or daily
