@@ -3,9 +3,12 @@ import discord
 import datetime
 from zoneinfo import ZoneInfo, available_timezones
 import json
+import time
 
 MAX_CACHE_SIZE = 30
 WEEKDAYS = {0:"monday", 1:"tuesday", 2:"wednesday", 3:"thursday", 4:"friday", 5:"saturday", 6:"sunday"}
+
+last_sent = time.time()
 
 #By default need to have at least one time
 times = [datetime.time(hour=0, minute=0)]
@@ -15,6 +18,7 @@ class Scheduler(commands.Cog):
         self.bot = bot
         self.send_message.start()
         self.refresh()
+        self.last_message = 99
         
     def cog_unload(self):
         self.send_message.cancel()
@@ -284,9 +288,16 @@ $remove message [label] : Removes a message by label
             """)
 
     async def handle_scheduled_message(self):
+        #Only allow one call per second
+        if last_sent == time.time():
+            last_sent = time.time()
+            return False
+
         #Get the channel from saved ID
         channel = self.get_channel(self.data["toChannel"])
         now = datetime.datetime.now()
+
+        print("Ran handle_scheduled_message", now)
 
         #For each message check if it is time to send it
         for label, message in self.data["messages"].items():
@@ -298,6 +309,9 @@ $remove message [label] : Removes a message by label
             if WEEKDAYS[datetime.datetime.today().weekday()] == message["repeat"] or message["repeat"] == "daily":
                 #If the current time matches the message time send it
                 if int(hour) == now.hour and int(minute) == now.minute:
+                    
+                    print("Sent message " + message["text"])
+
                     msg = await channel.send(message["text"])
                     #Add the reactions
                     await msg.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
