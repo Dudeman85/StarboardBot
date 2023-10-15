@@ -8,8 +8,6 @@ import time
 MAX_CACHE_SIZE = 30
 WEEKDAYS = {0:"monday", 1:"tuesday", 2:"wednesday", 3:"thursday", 4:"friday", 5:"saturday", 6:"sunday"}
 
-last_sent = time.time()
-
 #By default need to have at least one time
 times = [datetime.time(hour=0, minute=0)]
 
@@ -54,6 +52,7 @@ class Scheduler(commands.Cog):
 
 class RemindBot(discord.Client):
     async def on_ready(self):
+        self.last_sent = time.time()
         self.data = {}
         try:
             #Load in the data from json
@@ -259,6 +258,15 @@ class RemindBot(discord.Client):
             else:
                 await message.channel.send(message.content[16:] + " not in scheduled messages")
 
+        #$send message [label]
+        #Sends the specified message
+        if(message.content.startswith("$send message")):
+            label = message.content[14:]
+            if label not in self.data["messages"]:
+                await message.channel.send(label + " is not a message")
+                return 
+            await self.send_message(label)
+
         #$list messages
         #Shows the curretly scheduled messages
         if message.content.startswith("$list messages"):
@@ -289,15 +297,14 @@ $remove message [label] : Removes a message by label
 
     async def handle_scheduled_message(self):
         #Only allow one call per second
-        if last_sent == time.time():
-            last_sent = time.time()
+        if self.last_sent == time.time():
+            self.last_sent = time.time()
             return False
 
         #Get the channel from saved ID
-        channel = self.get_channel(self.data["toChannel"])
         now = datetime.datetime.now()
 
-        print("Ran handle_scheduled_message", now)
+        print("handle_scheduled_message called at", time.time())
 
         #For each message check if it is time to send it
         for label, message in self.data["messages"].items():
@@ -309,28 +316,35 @@ $remove message [label] : Removes a message by label
             if WEEKDAYS[datetime.datetime.today().weekday()] == message["repeat"] or message["repeat"] == "daily":
                 #If the current time matches the message time send it
                 if int(hour) == now.hour and int(minute) == now.minute:
-                    
-                    print("Sent message " + message["text"])
+                    #Send the message
+                    await self.send_message(label)
 
-                    msg = await channel.send(message["text"])
-                    #Add the reactions
-                    await msg.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
-                    await msg.add_reaction(u"\N{CROSS MARK}")
+    async def send_message(self, label):
+        print("Sent message " + label)
 
-                    cacheData = []
-                    notifyInfo = f"@here\n{label}:\n\N{WHITE HEAVY CHECK MARK}:\n\N{CROSS MARK}:"
-                    #Send the reaction counter dm
-                    #For each user set to be notified
-                    for notifyChannel in self.data["notify"]:
-                        sendTo = self.get_channel(notifyChannel)
-                        msgID = await sendTo.send(notifyInfo)
-                        cacheData.append(msgID.id)
+        #Get the data from save
+        message = self.data["messages"][label]
+        channel = self.get_channel(self.data["toChannel"])
 
-                    #Add the message to cache
-                    self.data["messageCache"][str(msg.id)] = cacheData
-                    if len(self.data["messageCache"]) > MAX_CACHE_SIZE:
-                        self.data["messageCache"].pop(0)
-                    self.save_data()
+        msg = await channel.send(message["text"])
+        #Add the reactions
+        await msg.add_reaction(u"\N{WHITE HEAVY CHECK MARK}")
+        await msg.add_reaction(u"\N{CROSS MARK}")
+
+        cacheData = []
+        notifyInfo = f"@here\n{label}:\n\N{WHITE HEAVY CHECK MARK}:\n\N{CROSS MARK}:"
+        #Send the reaction counter dm
+        #For each user set to be notified
+        for notifyChannel in self.data["notify"]:
+            sendTo = self.get_channel(notifyChannel)
+            msgID = await sendTo.send(notifyInfo)
+            cacheData.append(msgID.id)
+
+        #Add the message to cache
+        self.data["messageCache"][str(msg.id)] = cacheData
+        if len(self.data["messageCache"]) > MAX_CACHE_SIZE:
+            self.data["messageCache"].pop(0)
+        self.save_data()
 
     #Write data to json file
     def save_data(self):
