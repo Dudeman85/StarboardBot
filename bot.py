@@ -293,6 +293,7 @@ $send to channel [#channel] : Sends the scheduled messages to specified channel
 $list messages : Shows the curretly scheduled messages
 $add message [label], [text], [time (H:M)], [repeat] : Schedule a message to be sent at time and repeat on weekday or daily
 $remove message [label] : Removes a message by label
+$send message [label] : Sends a message immediately
             """)
 
     async def handle_scheduled_message(self):
