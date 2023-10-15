@@ -1,5 +1,10 @@
 # StarboardBot
 
+## Install
+pip install discord.py
+pip install tzdata
+pip install tendo
+
 ### TODO:
 #### 1. Add command to manually send messages
 #### 2. Notify admin when reaction threshold is met
