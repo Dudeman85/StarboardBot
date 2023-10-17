@@ -303,8 +303,9 @@ $send message [label] : Sends a message immediately
     async def handle_scheduled_message(self):
         #Only allow one call per second
         if self.last_sent == int(time.time()):
-            self.last_sent = int(time.time())
+            print("Tried to call handle_scheduled_message too many times per second!")
             return False
+        self.last_sent = int(time.time())
 
         #Get the channel from saved ID
         now = datetime.datetime.now()
