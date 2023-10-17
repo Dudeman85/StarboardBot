@@ -56,7 +56,7 @@ class Scheduler(commands.Cog):
 
 class RemindBot(discord.Client):
     async def on_ready(self):
-        self.last_sent = time.time()
+        self.last_sent = int(time.time())
         self.data = {}
         try:
             #Load in the data from json
@@ -302,8 +302,8 @@ $send message [label] : Sends a message immediately
 
     async def handle_scheduled_message(self):
         #Only allow one call per second
-        if self.last_sent == time.time():
-            self.last_sent = time.time()
+        if self.last_sent == int(time.time()):
+            self.last_sent = int(time.time())
             return False
 
         #Get the channel from saved ID
